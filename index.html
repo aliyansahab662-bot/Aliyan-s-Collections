@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="ur" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aliyan Collections — Store</title>
+  <style>
+    :root{--accent:#0ea5a4;--muted:#666}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Noto Nastaliq Urdu',sans-serif;margin:0;background:#f7f7f9;color:#111}
+    header{background:white;padding:12px 18px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between}
+    .brand{font-weight:700;font-size:18px}
+    .search{flex:1;margin:0 12px}
+    input[type=search]{width:100%;padding:8px 10px;border-radius:8px;border:1px solid #ddd}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;padding:16px}
+    .card{background:white;padding:10px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.04);display:flex;flex-direction:column}
+    .card img{height:140px;object-fit:cover;border-radius:8px}
+    .title{font-size:14px;margin:8px 0 4px}
+    .price{font-weight:700;color:var(--accent)}
+    .btn{background:var(--accent);color:white;padding:8px;border-radius:8px;border:0;cursor:pointer;margin-top:8px}
+    .fab{position:fixed;right:16px;bottom:16px;background:#25D366;color:white;border-radius:50%;width:56px;height:56px;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,0.18);text-decoration:none}
+    footer{padding:12px;text-align:center;color:var(--muted);font-size:13px}
+    .cart-btn{position:fixed;left:16px;bottom:16px;background:#111;color:white;padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.12);cursor:pointer}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;padding:18px;visibility:hidden;opacity:0;transition:all .15s}
+    .modal.open{visibility:visible;opacity:1}
+    .sheet{background:white;padding:18px;border-radius:12px;max-width:720px;width:100%;max-height:90vh;overflow:auto}
+    label{display:block;margin:8px 0 4px;font-size:13px}
+    input,textarea,select{width:100%;padding:8px;border-radius:8px;border:1px solid #ddd}
+    .row{display:flex;gap:8px}
+    .row .col{flex:1}
+    .small{font-size:12px;color:var(--muted)}
+    .admin{background:#fff3cd;border:1px solid #ffe8a1;padding:10px;border-radius:8px;margin:12px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">Aliyan Collections</div>
+    <div class="search"><input id="search" type="search" placeholder="Product dhoondein... (Search)" /></div>
+    <div class="actions"><button id="open-admin" class="btn">Products add karo</button></div>
+  </header>
+
+  <main>
+    <div id="products" class="grid"></div>
+  </main>
+
+  <a id="whats" class="fab" title="WhatsApp par message bhejein" href="#" target="_blank">WA</a>
+  <button id="open-cart" class="cart-btn">Cart <span id="cart-count">0</span></button>
+
+  <div id="cart-modal" class="modal"><div class="sheet" role="dialog">
+    <h3>Cart / آرڈر</h3>
+    <div id="cart-list"></div>
+    <div class="small">Checkout mein image upload aur address maangega.</div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button id="close-cart" class="btn" style="background:#999">Band karein</button><button id="checkout" class="btn">Checkout</button></div>
+  </div></div>
+
+  <div id="checkout-modal" class="modal"><div class="sheet">
+    <h3>Checkout — Address aur Image</h3>
+    <form id="checkout-form">
+      <label>Naam</label>
+      <input name="name" required />
+      <label>Mobile (Whatsapp ke liye)</label>
+      <input name="phone" required />
+      <label>Address</label>
+      <textarea name="address" rows="3" required></textarea>
+      <label>Delivery city</label>
+      <input name="city" required />
+      <label>Order image (agar customer apni image bhejna chahe)</label>
+      <input type="file" accept="image/*" name="orderImage" />
+      <div id="preview" style="margin-top:8px"></div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" id="cancel-checkout" class="btn" style="background:#999">Cancel</button>
+        <button type="submit" class="btn">Order place karein</button>
+      </div>
+    </form>
+  </div></div>
+
+  <div id="order-confirm" class="modal"><div class="sheet">
+    <h3>Order Confirmed</h3>
+    <p id="order-summary"></p>
+    <p class="small">Hum aapke order ko process karenge. Aapko WhatsApp par confirmation bhejne ke liye button dabayein.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button id="close-confirm" class="btn">Okay</button><a id="send-wa" class="btn" target="_blank">WhatsApp par bhejein</a></div>
+  </div></div>
+
+  <footer>Made for <strong>Aliyan Collections</strong> — Edit the code to change products or phone number.</footer>
+
+  <script>
+    // --- CONFIG ---
+    // Change this to your WhatsApp number in international form (no leading +). Example for Pakistan: 923306741411
+    const SHOP_WHATSAPP = '923306741411';
+    // --- /CONFIG ---
+
+    const productsEl = document.getElementById('products');
+    const search = document.getElementById('search');
+    const cartBtn = document.getElementById('open-cart');
+    const cartModal = document.getElementById('cart-modal');
+    const cartList = document.getElementById('cart-list');
+    const cartCount = document.getElementById('cart-count');
+    const checkoutModal = document.getElementById('checkout-modal');
+    const checkoutForm = document.getElementById('checkout-form');
+    const preview = document.getElementById('preview');
+    const orderConfirm = document.getElementById('order-confirm');
+    const orderSummary = document.getElementById('order-summary');
+    const sendWa = document.getElementById('send-wa');
+    const whats = document.getElementById('whats');
+    whats.href = 'https://wa.me/' + SHOP_WHATSAPP;
+
+    // demo starter products (you can edit or add via admin panel)
+    let products = [
+      {id:1,title:'Classic Perfume 50ml',price:1800,img:'https://picsum.photos/seed/p1/400/300',tags:['perfume','fragrance']},
+      {id:2,title:'Smartwatch Q9',price:3200,img:'https://picsum.photos/seed/p2/400/300',tags:['smartwatch','electronics']},
+      {id:3,title:'Men's Suit - Elegant',price:4500,img:'https://picsum.photos/seed/p3/400/300',tags:['suit','clothing']},
+      {id:4,title:'Trendy Phone Case',price:450,img:'https://picsum.photos/seed/p4/400/300',tags:['accessory','phone']}
+    ];
+
+    // admin product adder (simple)
+    document.getElementById('open-admin').addEventListener('click',()=>{
+      const html = `\n        <div class="admin">\n          <strong>Admin: Naya product add karein</strong>\n          <div style="margin-top:8px">\n            <input id="a-title" placeholder="Title" />\n            <input id="a-price" placeholder="Price" style="margin-top:6px" />\n            <input id="a-img" placeholder="Image URL" style="margin-top:6px" />\n            <div style="margin-top:8px"><button id="a-add" class="btn">Add product</button></div>\n          </div>\n        </div>`;
+      const node = document.createElement('div');node.innerHTML = html;document.body.appendChild(node);
+      document.getElementById('a-add').addEventListener('click',()=>{
+        const t = document.getElementById('a-title').value || 'Untitled';
+        const p = parseInt(document.getElementById('a-price').value||0,10)||0;
+        const i = document.getElementById('a-img').value || 'https://picsum.photos/seed/'+Math.random()+'/400/300';
+        const id = Date.now();
+        products.unshift({id,title:t,price:p,img:i,tags:[]});
+        renderProducts();
+        alert('Product add hogaya');
+      });
+    });
+
+    function renderProducts(filter){
+      productsEl.innerHTML='';
+      const list = products.filter(p=>!filter || (p.title+ ' '+ (p.tags||[]).join(' ')).toLowerCase().includes(filter.toLowerCase()));
+      list.forEach(p=>{
+        const card = document.createElement('div');card.className='card';
+        card.innerHTML = `<img src="${p.img}" alt="${p.title}" /><div class="title">${p.title}</div><div class="price">Rs ${p.price}</div><button class="btn add" data-id="${p.id}">Add to cart</button>`;
+        productsEl.appendChild(card);
+      });
+      attachAddEvents();
+    }
+
+    let cart = [];
+    function attachAddEvents(){
+      document.querySelectorAll('.add').forEach(btn=>btn.addEventListener('click',e=>{
+        const id = parseInt(e.target.dataset.id,10);
+        const p = products.find(x=>x.id===id);
+        cart.push({...p,qty:1});
+        updateCartUI();
+      }));
+    }
+
+    function updateCartUI(){
+      cartCount.textContent = cart.length;
+      cartList.innerHTML = '';
+      cart.forEach((c,i)=>{
+        const div = document.createElement('div');
+        div.innerHTML = `<div style="display:flex;gap:8px;align-items:center;margin:8px 0"><img src="${c.img}" style="width:56px;height:56px;object-fit:cover;border-radius:6px"/><div style="flex:1"><div>${c.title}</div><div class="small">Rs ${c.price}</div></div><button data-i="${i}" class="btn remove" style="background:#e55">Remove</button></div>`;
+        cartList.appendChild(div);
+      });
+      document.querySelectorAll('.remove').forEach(b=>b.addEventListener('click',e=>{cart.splice(parseInt(e.target.dataset.i,10),1);updateCartUI();}));
+    }
+
+    cartBtn.addEventListener('click',()=>{cartModal.classList.add('open')});
+    document.getElementById('close-cart').addEventListener('click',()=>{cartModal.classList.remove('open')});
+    document.getElementById('checkout').addEventListener('click',()=>{cartModal.classList.remove('open');checkoutModal.classList.add('open')});
+
+    document.getElementById('cancel-checkout').addEventListener('click',()=>{checkoutModal.classList.remove('open')});
+
+    // preview image
+    checkoutForm.orderImage.addEventListener('change',e=>{
+      const f = e.target.files[0];if(!f)return;const url = URL.createObjectURL(f);preview.innerHTML = `<img src="${url}" style="max-width:160px;border-radius:8px"/>`;
+    });
+
+    checkoutForm.addEventListener('submit',e=>{
+      e.preventDefault();
+      const form = new FormData(checkoutForm);
+      // create a simple order summary
+      const items = cart.map(c=>`${c.title} x${c.qty || 1} (Rs ${c.price})`).join('\n');
+      const summary = `Name: ${form.get('name')}\nPhone: ${form.get('phone')}\nCity: ${form.get('city')}\nAddress: ${form.get('address')}\n\nItems:\n${items}\n\nTotal: Rs ${cart.reduce((s,it)=>s+it.price,0)}`;
+      orderSummary.textContent = summary.replace(/\n/g,'\n');
+      sendWa.href = `https://wa.me/${SHOP_WHATSAPP}?text=${encodeURIComponent(summary)}`;
+      orderConfirm.classList.add('open');
+      checkoutModal.classList.remove('open');
+      // reset cart as 'placed'
+      cart = [];
+      updateCartUI();
+    });
+
+    document.getElementById('close-confirm').addEventListener('click',()=>{orderConfirm.classList.remove('open')});
+
+    // search
+    search.addEventListener('input',e=>renderProducts(e.target.value));
+
+    // initial render
+    renderProducts();
+
+    // quick tips: when user clicks WhatsApp (fab), it opens shop number
+    // Floating WhatsApp configured using SHOP_WHATSAPP constant above
+  </script>
+
+  <!--
+    How to use:
+    1) Edit SHOP_WHATSAPP at the top of the <script> to your number in international format (e.g. Pakistan: 923306741411)
+    2) Edit initial products array or use the "Products add karo" admin button to add product title, price, and image URL.
+    3) Host the single HTML file on GitHub Pages or any static host.
+
+    Hosting quick steps (mobile):
+    - Create a GitHub account, make a new repo named <username>.github.io, upload this file as index.html, then enable Pages in repo settings.
+    - Or use Netlify/Cloudflare Pages and drag-drop the file.
+
+    This single-file store is for a small dropshipping / catalog workflow and opens WhatsApp with order summary for you to process manually.
+  -->
+</body>
+</html>
